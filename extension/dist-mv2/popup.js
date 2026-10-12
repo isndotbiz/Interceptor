@@ -63,10 +63,10 @@
     }
     if (snapshot.state === "connected") {
       title.textContent = "Interceptor daemon is healthy";
-      const detail2 = document.createElement("div");
-      detail2.className = "connection-detail";
-      detail2.textContent = transportName(snapshot.transport);
-      health.append(title, detail2);
+      const detail = document.createElement("div");
+      detail.className = "connection-detail";
+      detail.textContent = transportName(snapshot.transport);
+      health.append(title, detail);
       return;
     }
     const hostMissing = snapshot.nativeError?.toLowerCase().includes("specified native messaging host not found");

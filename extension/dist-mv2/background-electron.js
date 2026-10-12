@@ -105,10 +105,10 @@ function installElectronCompat(c) {
         const { target } = opts;
         const what = opts.files?.length ? opts.files.map((file) => ({ file })) : opts.func ? [{ code: `(${opts.func.toString()})(...${JSON.stringify(opts.args ?? [])})` }] : [];
         const run = async (where) => {
-          let results2 = [];
+          let results = [];
           for (const script of what)
-            results2 = await call(nativeExecute, tabs, [target.tabId, { ...where, ...script }]) ?? [];
-          return results2;
+            results = await call(nativeExecute, tabs, [target.tabId, { ...where, ...script }]) ?? [];
+          return results;
         };
         if (target.frameIds?.length) {
           const out = [];
@@ -1713,12 +1713,12 @@ async function executeInMainWorld(tabId, func, args = []) {
     try {
       const argsLiteral = "[" + args.map((a) => a === undefined ? "undefined" : JSON.stringify(a)).join(",") + "]";
       const code = `(${func.toString()}).apply(null, ${argsLiteral})`;
-      const results2 = await chrome.userScripts.execute({
+      const results = await chrome.userScripts.execute({
         target: { tabId },
         world: "MAIN",
         js: [{ code }]
       });
-      const first = results2?.[0];
+      const first = results?.[0];
       if (first && !first.error)
         return first.result;
     } catch {}
@@ -1884,9 +1884,9 @@ function canvasObserverSummary(limit = 100, kinds, canvasIndex, obsKey) {
   function normalize(kind) {
     return String(kind || "").trim();
   }
-  function summarize(entries2) {
+  function summarize(entries) {
     const out = {};
-    for (const entry of entries2) {
+    for (const entry of entries) {
       const kind = normalize(entry.kind);
       if (!kind)
         continue;
@@ -1894,10 +1894,10 @@ function canvasObserverSummary(limit = 100, kinds, canvasIndex, obsKey) {
     }
     return out;
   }
-  function resolveCanvasId(observer2, canvasIndex2) {
-    if (canvasIndex2 === undefined || canvasIndex2 === null)
+  function resolveCanvasId(observer, canvasIndex) {
+    if (canvasIndex === undefined || canvasIndex === null)
       return;
-    const canvases = Array.isArray(observer2?.canvases) ? observer2.canvases.slice() : [];
+    const canvases = Array.isArray(observer?.canvases) ? observer.canvases.slice() : [];
     const ordered = canvases.sort((a, b) => {
       const left = typeof a.domIndex === "number" ? a.domIndex : Number.MAX_SAFE_INTEGER;
       const right = typeof b.domIndex === "number" ? b.domIndex : Number.MAX_SAFE_INTEGER;
@@ -1905,8 +1905,8 @@ function canvasObserverSummary(limit = 100, kinds, canvasIndex, obsKey) {
         return left - right;
       return String(a.canvasId || "").localeCompare(String(b.canvasId || ""));
     });
-    const canvasId2 = ordered[canvasIndex2]?.canvasId;
-    return typeof canvasId2 === "string" && canvasId2 ? canvasId2 : null;
+    const canvasId = ordered[canvasIndex]?.canvasId;
+    return typeof canvasId === "string" && canvasId ? canvasId : null;
   }
   const observer = (obsKey ? window[Symbol.for(obsKey)] : null) || null;
   if (!observer || !Array.isArray(observer.log)) {
@@ -1940,10 +1940,10 @@ function canvasObserverObjectsSummary(limit = 100, kind, canvasIndex, obsKey) {
   function normalize(value) {
     return String(value || "").trim();
   }
-  function resolveCanvasId(observer2, canvasIndex2) {
-    if (canvasIndex2 === undefined || canvasIndex2 === null)
+  function resolveCanvasId(observer, canvasIndex) {
+    if (canvasIndex === undefined || canvasIndex === null)
       return;
-    const canvases = Array.isArray(observer2?.canvases) ? observer2.canvases.slice() : [];
+    const canvases = Array.isArray(observer?.canvases) ? observer.canvases.slice() : [];
     const ordered = canvases.sort((a, b) => {
       const left = typeof a.domIndex === "number" ? a.domIndex : Number.MAX_SAFE_INTEGER;
       const right = typeof b.domIndex === "number" ? b.domIndex : Number.MAX_SAFE_INTEGER;
@@ -1951,8 +1951,8 @@ function canvasObserverObjectsSummary(limit = 100, kind, canvasIndex, obsKey) {
         return left - right;
       return String(a.canvasId || "").localeCompare(String(b.canvasId || ""));
     });
-    const canvasId2 = ordered[canvasIndex2]?.canvasId;
-    return typeof canvasId2 === "string" && canvasId2 ? canvasId2 : null;
+    const canvasId = ordered[canvasIndex]?.canvasId;
+    return typeof canvasId === "string" && canvasId ? canvasId : null;
   }
   const observer = (obsKey ? window[Symbol.for(obsKey)] : null) || null;
   if (!observer || !Array.isArray(observer.objects)) {
@@ -3241,11 +3241,11 @@ async function executeWithUserScripts(tabId, world, code, frameId) {
       });
       return frameId === undefined ? results[0] : results.find((r) => r.frameId === frameId) ?? (results.length === 1 && results[0]?.frameId === undefined ? results[0] : undefined);
     };
-    const settled = (first2) => {
-      if (!first2)
+    const settled = (first) => {
+      if (!first)
         return { available: true, result: { success: false, error: `no result for frame ${frameId ?? 0}` } };
-      if (first2.error)
-        return { available: true, result: { success: false, error: first2.error } };
+      if (first.error)
+        return { available: true, result: { success: false, error: first.error } };
       return;
     };
     let first = await run(forms.expression);
@@ -3624,17 +3624,17 @@ async function readStagedChunk(tabId, key, offset, length) {
     world: "ISOLATED",
     args: [key, offset, length],
     func: (sourceKey, start, count) => {
-      const bytes2 = globalThis[sourceKey];
-      if (!bytes2)
+      const bytes = globalThis[sourceKey];
+      if (!bytes)
         throw new Error("staged bytes not found");
-      const end = Math.min(start + count, bytes2.byteLength);
-      const slice = bytes2.subarray(start, end);
-      let binary2 = "";
+      const end = Math.min(start + count, bytes.byteLength);
+      const slice = bytes.subarray(start, end);
+      let binary = "";
       const block = 32768;
       for (let i = 0;i < slice.byteLength; i += block) {
-        binary2 += String.fromCharCode(...slice.subarray(i, Math.min(i + block, slice.byteLength)));
+        binary += String.fromCharCode(...slice.subarray(i, Math.min(i + block, slice.byteLength)));
       }
-      return btoa(binary2);
+      return btoa(binary);
     }
   });
   const b64 = results[0]?.result;
@@ -3991,9 +3991,9 @@ async function handleFrameActions(action, tabId, sendFrame = sendToContentScript
       return { success: false, error: `getAllFrames failed: ${err.message}` };
     }
     if (!frames?.length) {
-      const data2 = { query, mode, frames: [] };
+      const data = { query, mode, frames: [] };
       if (mode !== "elements") {
-        data2.text = {
+        data.text = {
           total: 0,
           returned: 0,
           truncated: false,
@@ -4003,9 +4003,9 @@ async function handleFrameActions(action, tabId, sendFrame = sendToContentScript
         };
       }
       if (mode !== "text") {
-        data2.elements = { total: 0, returned: 0, truncated: false, matches: [] };
+        data.elements = { total: 0, returned: 0, truncated: false, matches: [] };
       }
-      return { success: true, data: data2, tabId };
+      return { success: true, data, tabId };
     }
     const perFrameResults = await Promise.all(frames.map(async (frame) => {
       const frameMeta = {
@@ -4036,16 +4036,16 @@ async function handleFrameActions(action, tabId, sendFrame = sendToContentScript
           frameMeta.error = response.error || "unreachable frame";
           return result;
         }
-        const data2 = response.data;
-        if (data2.text) {
-          result.textTotal = data2.text.total;
-          result.scannedCharacters = data2.text.scannedCharacters || 0;
-          result.scanTruncated = data2.text.scanTruncated === true;
-          result.textMatches = data2.text.matches.map((match) => ({ ...match, frameId: frame.frameId }));
+        const data = response.data;
+        if (data.text) {
+          result.textTotal = data.text.total;
+          result.scannedCharacters = data.text.scannedCharacters || 0;
+          result.scanTruncated = data.text.scanTruncated === true;
+          result.textMatches = data.text.matches.map((match) => ({ ...match, frameId: frame.frameId }));
         }
-        if (data2.elements) {
-          result.elementTotal = data2.elements.total;
-          for (const match of data2.elements.matches) {
+        if (data.elements) {
+          result.elementTotal = data.elements.total;
+          for (const match of data.elements.matches) {
             const refId = frame.frameId === 0 ? match.refId : match.refId.replace(/^e(\d+)$/, `e${frame.frameId}_$1`);
             result.elementMatches.push({ ...match, refId, frameId: frame.frameId });
           }
@@ -4682,11 +4682,11 @@ function registerWebNavListenersOnce() {
       return;
     const pendingChild = pendingChildTabs.get(details.tabId);
     if (pendingChild) {
-      const session2 = sessions.get(pendingChild.sessionId);
-      if (session2 && !session2.paused) {
+      const session = sessions.get(pendingChild.sessionId);
+      if (session && !session.paused) {
         adoptChildTab(details.tabId, pendingChild.openerTabId).catch(() => {});
-        switchToAttachment(session2, createAttachment(details.tabId, details.documentId, details.frameId, details.url, details.documentLifecycle, "child_tab", pendingChild.openerTabId), "child_tab");
-        emitMonEvent(session2, "nav", {
+        switchToAttachment(session, createAttachment(details.tabId, details.documentId, details.frameId, details.url, details.documentLifecycle, "child_tab", pendingChild.openerTabId), "child_tab");
+        emitMonEvent(session, "nav", {
           u: details.url,
           typ: details.transitionType === "reload" ? "reload" : "hard",
           tt: details.transitionType,

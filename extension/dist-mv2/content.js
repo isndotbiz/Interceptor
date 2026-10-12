@@ -12,7 +12,17 @@ var __export = (target, all) => {
       set: __exportSetter.bind(all, name)
     });
 };
-var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
+var __esm = (fn, res, err) => () => {
+  if (fn)
+    try {
+      res = fn(fn = 0);
+    } catch (e) {
+      err = [e];
+    }
+  if (err)
+    throw err[0];
+  return res;
+};
 
 // extension/src/content/sensitive.ts
 function markSensitive(el) {
@@ -1010,22 +1020,6 @@ var init_input_simulation = __esm(() => {
 });
 
 // extension/src/content/scene/ops.ts
-var exports_ops = {};
-__export(exports_ops, {
-  boundingBox: () => boundingBox,
-  clickAtViewport: () => clickAtViewport,
-  clickElementCenter: () => clickElementCenter,
-  dblclickElementCenter: () => dblclickElementCenter,
-  dispatchKeysIn: () => dispatchKeysIn,
-  findAncestorScale: () => findAncestorScale,
-  findElementById: () => findElementById,
-  focusIframeTextbox: () => focusIframeTextbox,
-  isVisibleRect: () => isVisibleRect,
-  parseDocCoord: () => parseDocCoord,
-  parseScale: () => parseScale,
-  parseTranslate: () => parseTranslate,
-  scrollElementIntoView: () => scrollElementIntoView
-});
 function boundingBox(el) {
   const r = el.getBoundingClientRect();
   return {
@@ -1036,44 +1030,6 @@ function boundingBox(el) {
     cx: Math.round(r.left + r.width / 2),
     cy: Math.round(r.top + r.height / 2)
   };
-}
-function isVisibleRect(r) {
-  return r.w > 0 && r.h > 0;
-}
-function parseTranslate(transform) {
-  if (!transform)
-    return null;
-  const m = transform.match(TRANSLATE_RE);
-  if (!m)
-    return null;
-  return { x: parseFloat(m[1]), y: parseFloat(m[2]) };
-}
-function parseScale(transform) {
-  if (!transform)
-    return null;
-  const m = transform.match(SCALE_RE);
-  if (!m)
-    return null;
-  return parseFloat(m[1]);
-}
-function findAncestorScale(el) {
-  let cur = el;
-  for (let i = 0;i < 20 && cur; i++) {
-    const s = parseScale(cur.style?.transform);
-    if (s !== null)
-      return s;
-    cur = cur.parentElement;
-  }
-  return null;
-}
-function parseDocCoord(el) {
-  const he = el;
-  const t = parseTranslate(he.style?.transform);
-  const w = parseFloat(he.style?.width || "");
-  const h = parseFloat(he.style?.height || "");
-  if (!t || isNaN(w) || isNaN(h))
-    return null;
-  return { x: t.x, y: t.y, w, h };
 }
 function scrollElementIntoView(el) {
   const r = el.getBoundingClientRect();
@@ -1116,45 +1072,8 @@ function clickAtViewport(x, y) {
   } catch {}
   return el;
 }
-function focusIframeTextbox(iframe) {
-  try {
-    const doc = iframe.contentDocument;
-    if (!doc)
-      return null;
-    const textbox = doc.querySelector("[role=textbox]") || doc.querySelector("[contenteditable]");
-    if (!textbox)
-      return null;
-    try {
-      iframe.focus();
-    } catch {}
-    try {
-      textbox.focus();
-    } catch {}
-    return { doc, textbox };
-  } catch {
-    return null;
-  }
-}
-function dispatchKeysIn(target, keys) {
-  dispatchKeySequence(target, keys);
-}
-function findElementById(id) {
-  try {
-    const direct = document.getElementById(id);
-    if (direct)
-      return direct;
-  } catch {}
-  try {
-    return document.querySelector(`#${CSS.escape(id)}`);
-  } catch {
-    return null;
-  }
-}
-var TRANSLATE_RE, SCALE_RE;
 var init_ops = __esm(() => {
   init_input_simulation();
-  TRANSLATE_RE = /translate\(\s*(-?[\d.]+)(?:px)?\s*,\s*(-?[\d.]+)(?:px)?\s*\)/;
-  SCALE_RE = /scale\(\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/;
 });
 
 // extension/src/content/canvas-bridge.ts
@@ -2151,8 +2070,8 @@ async function handleSelectOption(action) {
   if (el.matches(":disabled") || el.getAttribute("aria-disabled") === "true")
     return { success: false, error: "select is disabled" };
   const options = Array.from(el.options);
-  const exact = options.find((option2) => option2.value === action.value);
-  const labels = exact ? [] : options.filter((option2) => option2.label === action.value);
+  const exact = options.find((option) => option.value === action.value);
+  const labels = exact ? [] : options.filter((option) => option.label === action.value);
   const option = exact || (labels.length === 1 ? labels[0] : undefined);
   if (!option)
     return {
@@ -2424,10 +2343,10 @@ function stageForPicker(bytes, name, type) {
 var chunkBuffers = new Map;
 function handleFileUploadChunk(action) {
   const uploadId = String(action.uploadId || "");
-  const seq2 = Number(action.seq);
+  const seq = Number(action.seq);
   const total = Number(action.total);
   const chunk = typeof action.chunk === "string" ? action.chunk : "";
-  if (!uploadId || !Number.isInteger(seq2) || !Number.isInteger(total) || total <= 0) {
+  if (!uploadId || !Number.isInteger(seq) || !Number.isInteger(total) || total <= 0) {
     return { success: false, error: "file_upload_chunk: malformed chunk header" };
   }
   let buf = chunkBuffers.get(uploadId);
@@ -2435,10 +2354,10 @@ function handleFileUploadChunk(action) {
     buf = { parts: new Array(total).fill(null), total };
     chunkBuffers.set(uploadId, buf);
   }
-  if (seq2 < 0 || seq2 >= buf.total) {
-    return { success: false, error: `file_upload_chunk: seq ${seq2} out of range 0..${buf.total - 1}` };
+  if (seq < 0 || seq >= buf.total) {
+    return { success: false, error: `file_upload_chunk: seq ${seq} out of range 0..${buf.total - 1}` };
   }
-  buf.parts[seq2] = chunk;
+  buf.parts[seq] = chunk;
   const received = buf.parts.reduce((n, p) => n + (p !== null ? 1 : 0), 0);
   return { success: true, data: { buffered: received, of: buf.total } };
 }
@@ -2493,10 +2412,10 @@ async function handleFileUpload(action) {
     fileInput.files = dt.files;
     fileInput.dispatchEvent(new Event("input", { bubbles: true }));
     fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-    const verified2 = fileInput.files.length > 0;
+    const verified = fileInput.files.length > 0;
     return {
       success: true,
-      data: { method: "input", fileName, size: bytes.byteLength, verified: verified2, multiple: fileInput.multiple, accept: fileInput.accept || null }
+      data: { method: "input", fileName, size: bytes.byteLength, verified, multiple: fileInput.multiple, accept: fileInput.accept || null }
     };
   }
   const target = el;
@@ -3333,13 +3252,13 @@ init_element_discovery();
 init_a11y_tree();
 init_input_simulation();
 init_sensitive();
-function findRenderedText(renderedText2, rawQuery, limit = 10, contextChars = 80) {
+function findRenderedText(renderedText, rawQuery, limit = 10, contextChars = 80) {
   const query = rawQuery.trim();
   const boundedLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 10;
   const matches = [];
   let total = 0;
   if (query.length > 0) {
-    const haystack = renderedText2.toLowerCase();
+    const haystack = renderedText.toLowerCase();
     const needle = query.toLowerCase();
     let from = 0;
     while (from <= haystack.length - needle.length) {
@@ -3350,14 +3269,14 @@ function findRenderedText(renderedText2, rawQuery, limit = 10, contextChars = 80
       total++;
       if (matches.length < boundedLimit) {
         const snippetStart = Math.max(0, start - contextChars);
-        const snippetEnd = Math.min(renderedText2.length, end + contextChars);
+        const snippetEnd = Math.min(renderedText.length, end + contextChars);
         const prefix = snippetStart > 0 ? "…" : "";
-        const suffix = snippetEnd < renderedText2.length ? "…" : "";
+        const suffix = snippetEnd < renderedText.length ? "…" : "";
         matches.push({
           start,
           end,
-          matchedText: renderedText2.slice(start, end),
-          snippet: `${prefix}${renderedText2.slice(snippetStart, snippetEnd).replace(/\s+/g, " ").trim()}${suffix}`
+          matchedText: renderedText.slice(start, end),
+          snippet: `${prefix}${renderedText.slice(snippetStart, snippetEnd).replace(/\s+/g, " ").trim()}${suffix}`
         });
       }
       from = end;
@@ -3367,7 +3286,7 @@ function findRenderedText(renderedText2, rawQuery, limit = 10, contextChars = 80
     total,
     returned: matches.length,
     truncated: total > matches.length,
-    scannedCharacters: renderedText2.length,
+    scannedCharacters: renderedText.length,
     scanTruncated: false,
     matches
   };
@@ -3859,11 +3778,11 @@ function selectedAdaptiveScene() {
   const writable = findFocusedWritableSurface();
   if (writable) {
     const id = getOrAssignSceneId(writable.element, "text", "focused-writable");
-    const label2 = getAccessibleName(writable.element) || writable.element.getAttribute("aria-label") || writable.kind;
+    const label = getAccessibleName(writable.element) || writable.element.getAttribute("aria-label") || writable.kind;
     return {
       has: true,
       id,
-      label: label2,
+      label,
       text: maskSensitiveText(writable.element, writable.text).slice(0, 200),
       extras: {
         kind: writable.kind,
@@ -4280,21 +4199,21 @@ var FILMSTRIP_ID = /^filmstrip-slide-(\d+)-(gd[a-z0-9_-]+)$/i;
 function gatherSlides() {
   const all = Array.from(document.querySelectorAll('g[id^="filmstrip-slide-"]'));
   const byIndex = new Map;
-  for (const g2 of all) {
-    if (g2.id.endsWith("-bg"))
+  for (const g of all) {
+    if (g.id.endsWith("-bg"))
       continue;
-    const m = g2.id.match(FILMSTRIP_ID);
+    const m = g.id.match(FILMSTRIP_ID);
     if (!m)
       continue;
     const index = parseInt(m[1], 10);
     if (byIndex.has(index))
       continue;
-    const rect = boundingBox(g2);
-    const img = g2.querySelector("image");
+    const rect = boundingBox(g);
+    const img = g.querySelector("image");
     const blob = img ? img.getAttribute("xlink:href") || img.getAttribute("href") || undefined : undefined;
-    const wrapper = g2.closest("g.punch-filmstrip-thumbnail");
+    const wrapper = g.closest("g.punch-filmstrip-thumbnail");
     const pageId = wrapper?.getAttribute("data-slide-page-id") || undefined;
-    byIndex.set(index, { index, id: g2.id, rect, blobUrl: blob, pageId });
+    byIndex.set(index, { index, id: g.id, rect, blobUrl: blob, pageId });
   }
   const out = Array.from(byIndex.values()).sort((a, b) => a.index - b.index);
   const current = currentSlideId();
@@ -4704,7 +4623,7 @@ async function handleCanvasAction(action) {
         const resolved = canvasResolve(id, profileOverride);
         if (!resolved.success)
           return resolved;
-        const { clickElementCenter: clickElementCenter2, dblclickElementCenter: dblclickElementCenter2 } = await Promise.resolve().then(() => (init_ops(), exports_ops));
+        await Promise.resolve().then(() => init_ops());
         const target = resolved.data;
         const beforeSelection = canvasSelected(profileOverride);
         const cx = Math.round(target.rect.cx);
@@ -4722,18 +4641,18 @@ async function handleCanvasAction(action) {
         }
         if (action.type === "scene_dblclick") {
           if (target.element)
-            dblclickElementCenter2(target.element);
+            dblclickElementCenter(target.element);
           else {
             const clicked = document.elementFromPoint(cx, cy);
             if (clicked)
-              dblclickElementCenter2(clicked);
+              dblclickElementCenter(clicked);
           }
           return {
             success: true,
             data: { id, clicked: true, at: { x: cx, y: cy }, method: "synthetic" }
           };
         }
-        const click = target.element ? () => clickElementCenter2(target.element) : await Promise.resolve().then(() => (init_ops(), exports_ops)).then(({ clickAtViewport: clickAtViewport3 }) => () => clickAtViewport3(cx, cy));
+        const click = target.element ? () => clickElementCenter(target.element) : await Promise.resolve().then(() => (init_ops(), {})).then(({}) => () => clickAtViewport(cx, cy));
         const mutation = waitForMutation(200);
         click();
         const mutated = await mutation;
@@ -4863,11 +4782,11 @@ function buildStyledClone(src, collect) {
     } catch {}
   }
   if (tag === "svg") {
-    const c2 = el.cloneNode(true);
+    const c = el.cloneNode(true);
     try {
-      inlineComputedStyle(el, c2, collect);
+      inlineComputedStyle(el, c, collect);
     } catch {}
-    return c2;
+    return c;
   }
   const c = el.cloneNode(false);
   if (c.style)
