@@ -70,9 +70,23 @@ function loopbackHttpGet(port: number, path: string, timeoutMs: number): Promise
   })
 }
 
+function linuxListening(port: number): boolean {
+  const hex = port.toString(16).toUpperCase().padStart(4, "0")
+  for (const f of ["/proc/net/tcp", "/proc/net/tcp6"]) {
+    try {
+      const rows = require("node:fs").readFileSync(f, "utf8").split("\n").slice(1)
+      if (rows.some((r: string) => { const c = r.trim().split(/\s+/); return c[1]?.endsWith(`:${hex}`) && c[3] === "0A" })) return true
+    } catch {}
+  }
+  return false
+}
+
 export async function probeDaemonHealth(wsPort: number, timeoutMs = 1500): Promise<DaemonProbe> {
   const raw = await loopbackHttpGet(wsPort, "/health", timeoutMs)
   if (raw.kind === "refused") return { state: "free" }
+  // WSL mirrored networking: a connect to a CLOSED loopback port hangs instead of being refused, so a
+  // timeout alone does not mean "held". On Linux, trust the kernel socket table (local patch, 2026-10-03).
+  if (raw.kind === "timeout" && process.platform === "linux" && !linuxListening(wsPort)) return { state: "free" }
   if (raw.kind === "timeout") return { state: "foreign", detail: `no reply within ${timeoutMs}ms` }
   if (raw.kind === "error") return { state: "foreign", detail: raw.message }
   const body = raw.body
